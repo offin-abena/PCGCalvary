@@ -108,6 +108,15 @@ class AgeGroupService
         return "TIMESTAMPDIFF(YEAR, {$memberAlias}.date_of_birth, CURDATE())";
     }
 
+    /**
+     * MySQL 8 rejects the zero-date literal '0000-00-00' in comparisons
+     * (error 1525). Treat any date before 1000-01-01 as invalid/missing.
+     */
+    public function sqlValidDobCondition(string $memberAlias = 'm'): string
+    {
+        return "{$memberAlias}.date_of_birth IS NOT NULL AND {$memberAlias}.date_of_birth >= '1000-01-01'";
+    }
+
     public function sqlFamilyMatch(string $groupKey, string $memberAlias = 'm', ?string $familyAlias = null): ?string
     {
         $names = $this->getFamilyNames($groupKey);
@@ -137,12 +146,12 @@ class AgeGroupService
             return null;
         }
 
+        $validDob = $this->sqlValidDobCondition($memberAlias);
+
         if ($groupKey === 'children_service') {
             $familyMatch = $this->sqlFamilyMatch($groupKey, $memberAlias, $familyAlias);
             $ageExpr = $this->sqlAgeExpression($memberAlias);
-            $ageMatch = "({$memberAlias}.date_of_birth IS NOT NULL
-                AND {$memberAlias}.date_of_birth != '0000-00-00'
-                AND {$ageExpr} <= " . (int) $group['max_age'] . ')';
+            $ageMatch = "({$validDob} AND {$ageExpr} <= " . (int) $group['max_age'] . ')';
 
             if ($familyMatch) {
                 return "({$ageMatch} OR {$familyMatch})";
@@ -154,8 +163,7 @@ class AgeGroupService
         if ($groupKey === 'junior_youth') {
             $familyMatch = $this->sqlFamilyMatch($groupKey, $memberAlias, $familyAlias);
             $ageExpr = $this->sqlAgeExpression($memberAlias);
-            $ageMatch = "({$memberAlias}.date_of_birth IS NOT NULL
-                AND {$memberAlias}.date_of_birth != '0000-00-00'
+            $ageMatch = "({$validDob}
                 AND {$ageExpr} BETWEEN " . (int) $group['min_age'] . ' AND ' . (int) $group['max_age'] . ')';
 
             if ($familyMatch) {
@@ -166,10 +174,7 @@ class AgeGroupService
         }
 
         $ageExpr = $this->sqlAgeExpression($memberAlias);
-        $conditions = [
-            "{$memberAlias}.date_of_birth IS NOT NULL",
-            "{$memberAlias}.date_of_birth != '0000-00-00'",
-        ];
+        $conditions = [$validDob];
 
         $min = (int) $group['min_age'];
         $max = $group['max_age'];
