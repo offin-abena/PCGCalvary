@@ -4,7 +4,10 @@ use App\Core\Csrf;
 
 function church_url(string $path = ''): string
 {
-    return $path === '' ? url('/') : url(ltrim($path, '/'));
+    // Root-relative paths always match the page scheme (avoids mixed content).
+    $path = ltrim($path, '/');
+
+    return $path === '' ? '/' : '/' . $path;
 }
 
 function church_asset(string $path): string

@@ -23,5 +23,12 @@ class AppServiceProvider extends ServiceProvider
         if ($rootUrl = config('app.url')) {
             URL::forceRootUrl($rootUrl);
         }
+
+        // Railway terminates TLS at the proxy; force HTTPS so asset/url()
+        // helpers never emit http:// links (mixed content).
+        if (str_starts_with((string) config('app.url'), 'https://')
+            || $this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
     }
 }
